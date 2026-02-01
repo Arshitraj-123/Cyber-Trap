@@ -1,0 +1,19 @@
+# Render.com Blueprint Configuration
+# Deploy with: https://render.com/deploy
+
+services:
+  # Backend API Service
+  - type: web
+    name: cybertrap-api
+    env: python
+    region: oregon
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false  # Manual entry required
+      - key: API_SECRET_KEY
+        value: cybertrap-secret-key-2024
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    healthCheckPath: /api/health

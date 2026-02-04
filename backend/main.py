@@ -31,7 +31,7 @@ from persona import (
     STAGE_DESCRIPTIONS, MIN_RAPPORT_TURNS, CLARIFICATION_PROMPTS, LANGUAGE_HINTS
 )
 from validators import (
-    ScamIntelligence, ConversationState, EngageRequest, EngageResponse,
+    ScamIntelligence, ConversationState, EngageRequest, EngageResponse, SimpleEngageResponse,
     ThoughtStep, validate_and_flag, IntelligenceData
 )
 
@@ -425,7 +425,7 @@ async def health():
     }
 
 
-@app.post("/api/engage", response_model=EngageResponse)
+@app.post("/api/engage", response_model=SimpleEngageResponse)
 async def engage_scammer(
     request: EngageRequest,
     api_key: str = Depends(verify_api_key)
@@ -438,20 +438,23 @@ async def engage_scammer(
         X-API-Key: API authentication key
     
     Request Body:
-        message: The scammer's message
+        message: The scammer's message (string or object)
         conversation_history: Previous conversation turns
         session_id: Optional session identifier
     
     Returns:
-        reply: Mrs. Shanthi's response (text only, no JSON visible to scammer)
-        intelligence: Extracted scam data (UPI, bank, IFSC, links)
-        confidence_score: Extraction confidence (0-1)
-        current_stage: Current funnel stage (1-4)
-        detected_language: Detected message language
-        thought_process: Agent's reasoning chain
+        status: "success"
+        reply: Mrs. Shanthi's response
     """
     
     thought_process = []
+    
+    # Extract message text if it's a dictionary/object
+    message_text = request.message
+    if isinstance(request.message, dict):
+        message_text = request.message.get("text", "")
+    elif not isinstance(request.message, str):
+        message_text = str(request.message)
     
     # Get or create session state
     session_id = request.session_id or "default"
@@ -461,7 +464,7 @@ async def engage_scammer(
     state = sessions[session_id]
     
     # Language detection
-    detected_lang = detect_language(request.message)
+    detected_lang = detect_language(message_text)
     state.detected_language = detected_lang
     
     thought_process.append(ThoughtStep(
@@ -485,7 +488,7 @@ async def engage_scammer(
     
     # Process with Groq
     reply, new_intel, groq_thoughts, confidence = await process_with_groq(
-        request.message,
+        message_text,
         state,
         request.conversation_history
     )
@@ -541,30 +544,11 @@ async def engage_scammer(
             state.current_stage = STAGE_FRICTION
             state.stage_turns = 0
     
-    # Build explanation from thought process
-    explanation_parts = [t.content for t in thought_process if t.type in ["thought", "action", "validation"]]
-    explanation = " | ".join(explanation_parts[-3:]) if explanation_parts else "Analyzing scammer message"
-    
-    # Build response with hackathon-compliant schema
-    response = EngageResponse(
-        classification="SCAM",  # Always SCAM for honey-pot
-        confidence=final_confidence,
-        reply=reply,
-        intelligence=IntelligenceData(
-            upi=current_intel.upi,
-            bank_account=current_intel.bank_account,
-            ifsc=current_intel.ifsc,
-            link=current_intel.link
-        ),
-        explanation=explanation,
-        current_stage=state.current_stage,
-        detected_language=detected_lang,
-        thought_process=thought_process,
-        needs_clarification=needs_clarification,
-        extraction_allowed=state.extraction_allowed
+    # Return simplified response for hackathon
+    return SimpleEngageResponse(
+        status="success",
+        reply=reply
     )
-    
-    return response
 
 
 @app.post("/api/reset")

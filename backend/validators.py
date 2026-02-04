@@ -4,7 +4,7 @@ Validates extracted intelligence data with auto-cleaning
 """
 
 import re
-from typing import Optional
+from typing import Optional, Union
 from pydantic import BaseModel, field_validator, model_validator
 
 
@@ -145,9 +145,17 @@ class ConversationState(BaseModel):
 class EngageRequest(BaseModel):
     """Request model for /api/engage endpoint"""
     
-    message: str
+    message: Union[str, dict]
     conversation_history: list = []
     session_id: Optional[str] = None
+    
+    # Aliases for camelCase support (hackathon schema)
+    class Config:
+        populate_by_name = True
+        alias_generator = lambda s: {
+            "session_id": "sessionId",
+            "conversation_history": "conversationHistory"
+        }.get(s, s)
 
 
 class ThoughtStep(BaseModel):
@@ -185,6 +193,12 @@ class EngageResponse(BaseModel):
     thought_process: list[ThoughtStep]
     needs_clarification: Optional[str] = None
     extraction_allowed: bool = True
+
+
+class SimpleEngageResponse(BaseModel):
+    """Simplified response for hackathon submission test"""
+    status: str = "success"
+    reply: str
 
 
 def validate_and_flag(data: dict) -> tuple[ScamIntelligence, Optional[str]]:

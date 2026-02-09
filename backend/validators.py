@@ -4,8 +4,8 @@ Validates extracted intelligence data with auto-cleaning
 """
 
 import re
-from typing import Optional, Union
-from pydantic import BaseModel, field_validator, model_validator
+from typing import Optional, Union, Any
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 
 
 class ScamIntelligence(BaseModel):
@@ -145,17 +145,12 @@ class ConversationState(BaseModel):
 class EngageRequest(BaseModel):
     """Request model for /api/engage endpoint"""
     
-    message: Union[str, dict]
-    conversation_history: list = []
-    session_id: Optional[str] = None
+    model_config = ConfigDict(populate_by_name=True, extra='ignore')
     
-    # Aliases for camelCase support (hackathon schema)
-    class Config:
-        populate_by_name = True
-        alias_generator = lambda s: {
-            "session_id": "sessionId",
-            "conversation_history": "conversationHistory"
-        }.get(s, s)
+    message: Union[str, dict]
+    conversation_history: list = Field(default=[], alias="conversationHistory")
+    session_id: Optional[str] = Field(default=None, alias="sessionId")
+    metadata: Optional[Any] = Field(default=None)  # Accept but ignore metadata
 
 
 class ThoughtStep(BaseModel):
